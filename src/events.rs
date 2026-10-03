@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 #[derive(Clone, Copy)]
 pub struct ParticleInfo {
     pub index: usize,
-    pub col_count: u32,
+    pub col_count: u64,
 }
 
 #[derive(Clone, Copy)]

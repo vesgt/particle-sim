@@ -1,26 +1,34 @@
 use std::collections::BinaryHeap;
-use macroquad::math::{vec2, Vec2};
+use std::f64::consts::PI;
+use macroquad::math::{dvec2, DVec2};
 use macroquad::rand::gen_range;
 use crate::events::{Axis, EventType, CollisionEvent, ParticleInfo};
 use crate::events::EventType::Wall;
 use crate::particle::Particle;
 
+const k_B: f64 = 1.380649 * 1e-23;
+
 pub struct Sim {
-    pub world: Vec2,
-    pub radius: f32,
-    pub mass: f32,
+    pub world: DVec2,
+    pub radius: f64,
+    pub mass: f64,
     pub particles: Vec<Particle>,
     pub heap: BinaryHeap<CollisionEvent>,
     pub sim_time: f64,
+    pub impact_total: f64,
+    pub initial_temperature: f64,
 }
 
 impl Sim {
-    pub fn new(world: Vec2, radius: f32, mass: f32, count: usize) -> Sim {
+    pub fn new(radius: f64, mass: f64, count: usize, temperature: f64, area_fraction: f64) -> Sim {
         let mut particles = Vec::with_capacity(count);
+        let height = (((count as f64 * PI * radius.powi(2)) / area_fraction) / (16.0 / 9.0)).sqrt();
+        let width = (16.0 / 9.0) * height;
+        let world: DVec2 = dvec2(width, height);
         let usable_span_x = world.x - 2.0 * radius;
         let usable_span_y = world.y - 2.0 * radius;
-        let col_count = (count as f32 * usable_span_x / usable_span_y).sqrt().ceil();
-        let row_count = (count as f32 / col_count).ceil();
+        let col_count = (count as f64 * usable_span_x / usable_span_y).sqrt().ceil();
+        let row_count = (count as f64 / col_count).ceil();
 
         // FIX: keep spacing in f32 (the i64 cast threw away the fraction and would
         // give 0 for a dense grid), and guard the single-row/column div-by-zero.
@@ -31,16 +39,20 @@ impl Sim {
         let offset_y = radius + ((usable_span_y - (row_count - 1.0) * spacing) / 2.0);
 
         for i in 0..count {
-            let c = i as f32 % col_count;
+            let c = i as f64 % col_count;
             // FIX: floor, not ceil. ceil put row 0 and row 1 on top of each other
             // and pushed the last row outside the world.
-            let d = (i as f32 / col_count).floor();
+            let d = (i as f64 / col_count).floor();
+
+            let direction = gen_range(0.0, 2.0*PI);
+            let u: f64 = gen_range(0.0, 1.0);
+            let speed = (k_B * temperature / mass).sqrt() * (-2.0 * u.ln()).sqrt();
 
             particles.push(Particle {
                 radius,
                 mass,
-                vel: vec2(gen_range(-50.0, 50.0), gen_range(-50.0, 50.0)),
-                pos: vec2(
+                vel: dvec2(speed * direction.cos(), speed * direction.sin()),
+                pos: dvec2(
                     offset_x + (c * spacing),
                     offset_y + (d * spacing),
                 ),
@@ -50,7 +62,7 @@ impl Sim {
 
         let heap: BinaryHeap<CollisionEvent> = BinaryHeap::new();
 
-        let mut sim = Sim { world, radius, mass, particles, sim_time: 0.0, heap };
+        let mut sim = Sim { world, radius, mass, particles, sim_time: 0.0, heap, impact_total: 0.0, initial_temperature: temperature };
 
         for i in 0..sim.particles.len() {
             sim.predict(i);
@@ -95,10 +107,18 @@ impl Sim {
                     Axis::X => {
                         self.particles[event.particle.index].vel.x = -self.particles[event.particle.index].vel.x;
                         self.particles[event.particle.index].collision_count += 1;
+
+                        // p = p_efter - p_före = (m * -v_x) - (m * v_x) = -2 * m * v_x (på PARTIKELN!) DVS: motsatsen på väggen.
+                        // ger väggen 2mv_x.
+                        let p = 2.0 * self.mass * self.particles[event.particle.index].vel.x.abs();
+                        self.impact_total += p as f64;
                     },
                     Axis::Y => {
                         self.particles[event.particle.index].vel.y = -self.particles[event.particle.index].vel.y;
                         self.particles[event.particle.index].collision_count += 1;
+
+                        let p = 2.0 * self.mass * self.particles[event.particle.index].vel.y.abs();
+                        self.impact_total += p as f64;
                     },
                 }
             },
@@ -210,7 +230,7 @@ impl Sim {
 
     pub fn drift(&mut self, target: f64) {
         for p in self.particles.iter_mut() {
-            p.pos += p.vel * (target - self.sim_time) as f32;
+            p.pos += p.vel * (target - self.sim_time);
         }
 
         self.sim_time = target;

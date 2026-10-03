@@ -1,33 +1,33 @@
-use macroquad::math::Vec2;
+use macroquad::math::DVec2;
 use crate::events::Axis;
 
 #[derive(Clone)]
 pub struct Particle {
-    pub radius: f32,
-    pub mass: f32,
-    pub vel: Vec2,
-    pub pos: Vec2,
-    pub collision_count: u32,
+    pub radius: f64,
+    pub mass: f64,
+    pub vel: DVec2,
+    pub pos: DVec2,
+    pub collision_count: u64,
 }
 
 impl Default for Particle {
-    fn default() -> Self { Particle { radius: 1.0, mass: 1.0, vel: Vec2::ZERO, pos: Vec2::ZERO, collision_count: 0  } }
+    fn default() -> Self { Particle { radius: 1.0, mass: 1.0, vel: DVec2::ZERO, pos: DVec2::ZERO, collision_count: 0  } }
 }
 
 impl Particle {
-    pub fn time_to_wall(&self, world: Vec2) -> Option<(f64, Axis)> {
+    pub fn time_to_wall(&self, world: DVec2) -> Option<(f64, Axis)> {
         let t_x = if self.vel.x > 0.0 {
-            ((world.x - self.pos.x - self.radius) / self.vel.x) as f64
+            (world.x - self.pos.x - self.radius) / self.vel.x
         } else if self.vel.x < 0.0 {
-            ((self.pos.x - self.radius) / -self.vel.x) as f64
+            (self.pos.x - self.radius) / -self.vel.x
         } else {
             f64::INFINITY
         };
 
         let t_y = if self.vel.y > 0.0 {
-            ((world.y - self.pos.y - self.radius) / self.vel.y) as f64
+            (world.y - self.pos.y - self.radius) / self.vel.y
         } else if self.vel.y < 0.0 {
-            ((self.pos.y - self.radius) / -self.vel.y) as f64
+            (self.pos.y - self.radius) / -self.vel.y
         } else {
             f64::INFINITY
         };
