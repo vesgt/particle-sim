@@ -46,7 +46,7 @@ impl Sim {
 
             let direction = gen_range(0.0, 2.0*PI);
             let u: f64 = gen_range(0.0, 1.0);
-            let speed = (k_B * temperature / mass).sqrt() * (-2.0 * u.ln()).sqrt();
+            let speed = (k_B * temperature / mass).sqrt() * (-2.0 * (1.0 - u).ln()).sqrt();
 
             particles.push(Particle {
                 radius,

@@ -3,10 +3,18 @@ mod events;
 mod sim;
 mod renderer;
 mod measurer;
+mod statistics;
 
 use macroquad::prelude::*;
+use crate::measurer::{Measurer, Sample};
 use crate::particle::Particle;
 use crate::sim::Sim;
+use crate::statistics::Statistics;
+
+const TOTAL_DURATION: f64 = 1e-8;
+const WARM_UP: f64 = 1e-9;
+const WINDOW_LENGTH: f64 = 1e-10;
+const TIME_FACTOR: f32 = 1e-10;
 
 #[macroquad::main("Sim")]
 async fn main() {
@@ -14,9 +22,11 @@ async fn main() {
 
     let rms = rms_speed(&sim.particles);
 
+    let mut samples: Vec<Sample> = Vec::new();
+    let mut measurer: Option<Measurer> = None;
     loop {
         let mut dt = get_frame_time();
-        dt = dt * 1e-10;
+        dt = dt * TIME_FACTOR;
         clear_background(BLACK);
 
         // world –> screen, recomputed each frame so resizing works
@@ -36,8 +46,26 @@ async fn main() {
 
         sim.advance(dt);
 
+        if sim.sim_time >= WARM_UP && measurer.is_none() {
+            measurer = Some(Measurer::new(WINDOW_LENGTH, sim.sim_time, sim.impact_total));
+        }
+
+        if measurer.is_some() {
+            let sample = measurer.as_mut().unwrap().sample(&sim);
+            if sample.is_some() {
+                samples.push(sample.unwrap());
+            }
+        }
+
+        if sim.sim_time >= TOTAL_DURATION {
+            break;
+        }
+
         next_frame().await;
     }
+
+    let statistics = Statistics::new(samples);
+    statistics.write_file();
 }
 
 fn rms_speed(particles: &Vec<Particle>) -> f64 {
